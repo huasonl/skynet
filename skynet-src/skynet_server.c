@@ -166,7 +166,10 @@ skynet_context_new(const char * name, const char *param) {
 		}
 		skynet_globalmq_push(queue);
 		if (ret) {
-			skynet_error(ret, "LAUNCH %s %s", name, param ? param : "");
+			if (skynet_context_total() == 1)
+				printf("LAUNCH logger: %s %s\n", name, param ? param : "");
+			else
+				skynet_error(ret, "LAUNCH %s %s", name, param ? param : "");
 		}
 		return ret;
 	} else {
