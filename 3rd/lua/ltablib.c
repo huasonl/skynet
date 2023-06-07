@@ -146,9 +146,15 @@ static int tmove (lua_State *L) {
 
 static void addfield (lua_State *L, luaL_Buffer *b, lua_Integer i) {
   lua_geti(L, 1, i);
-  int isboolean = lua_isboolean(L, -1);
-  if (isboolean){
-    lua_pushstring(L, (lua_toboolean(L, -1) ? "true" : "false"));
+  int n = lua_gettop(L);
+  int type = lua_type(L, -1);
+  const char *t = "true";
+  const char *f = "false";
+  if (type == LUA_TBOOLEAN){
+    lua_pushstring(L, (lua_toboolean(L, -1) ? t : f));
+  }
+  else if (type == LUA_TNIL){
+    lua_pushliteral(L, "nil");
   }
 
   if (l_unlikely(!lua_isstring(L, -1)))
@@ -156,8 +162,8 @@ static void addfield (lua_State *L, luaL_Buffer *b, lua_Integer i) {
                   luaL_typename(L, -1), (LUAI_UACINT)i);
   luaL_addvalue(b);
 
-  if (isboolean){
-    lua_pop(L, 1);  /* pop string */
+  if (type == LUA_TBOOLEAN || type == LUA_TNIL){
+    lua_settop(L, n);
   }
 }
 
