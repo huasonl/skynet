@@ -684,6 +684,7 @@ lpack(lua_State *L) {
 		return luaL_error(L, "packing error, return size = %d", bytes);
 	}
 	lua_pushlstring(L, output, bytes);
+	lua_pushinteger(L, bytes);
 
 	return 1;
 }
