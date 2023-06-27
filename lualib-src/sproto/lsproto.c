@@ -665,7 +665,7 @@ ldumpproto(lua_State *L) {
 
 /*
 	string source	/  (lightuserdata , integer)
-	return string
+	return string,len
  */
 static int
 lpack(lua_State *L) {
@@ -686,7 +686,7 @@ lpack(lua_State *L) {
 	lua_pushlstring(L, output, bytes);
 	lua_pushinteger(L, bytes);
 
-	return 1;
+	return 2;
 }
 
 static int
