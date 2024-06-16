@@ -357,6 +357,12 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 		sub.iter_func = 0;
 		sub.iter_table = 0;
 		sub.iter_key = 0;
+
+		if (lua_type(L, -1) != LUA_TTABLE) {
+			lua_settop(L, top-1); // pop the value
+			return 0;
+		}
+
 		r = sproto_encode(args->subtype, args->value, args->length, encode, &sub);
 		lua_settop(L, top-1);	// pop the value
 		if (r < 0) 

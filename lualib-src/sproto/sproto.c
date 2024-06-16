@@ -875,9 +875,11 @@ encode_array_object(sproto_callback cb, struct sproto_arg *args, uint8_t *buffer
 			}
 			return NULL;	// sz == SPROTO_CB_ERROR
 		}
-		fill_size(buffer, sz);
-		buffer += SIZEOF_LENGTH+sz;
-		size -= sz;
+		if (sz > 0) {
+			fill_size(buffer, sz);
+			buffer += SIZEOF_LENGTH+sz;
+			size -= sz;
+		}
 		++args->index;
 	}
 	return buffer;
