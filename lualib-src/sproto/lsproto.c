@@ -363,6 +363,15 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 			return 0;
 		}
 
+		if (args->ktagname != NULL) {
+			// map忽略__type
+			lua_getfield(L, -1, args->ktagname);
+			if (strcmp(lua_tostring(L, -1), "__type")== 0) {
+				lua_settop(L, lua_gettop(L)-2);
+				return 0;
+			}
+		}
+
 		r = sproto_encode(args->subtype, args->value, args->length, encode, &sub);
 		lua_settop(L, top-1);	// pop the value
 		if (r < 0) 
