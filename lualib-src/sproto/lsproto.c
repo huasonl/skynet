@@ -371,6 +371,27 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 				return 0;
 			}
 		}
+		else {
+			if (self->iter_key > 0) {
+				lua_getfield(L, -1, args->mainindexname);
+				if (lua_isnil(L, -1)) {
+					// 确保mainindex值不空
+					lua_pop(L, 1);
+					lua_pushvalue(L, self->iter_key);
+					if (args->mainindextype == SPROTO_TINTEGER) {
+						// iter_key 转换成整数
+						lua_Integer iter_key = lua_tointeger(L, -1);
+						lua_pushinteger(L, iter_key);
+						lua_setfield(L, -3, args->mainindexname);
+						lua_pop(L, 1);
+					}else if (args->mainindextype == SPROTO_TSTRING) {
+						lua_setfield(L, -2, args->mainindexname);
+					}
+				} else {
+					lua_pop(L, 1);
+				}
+			}
+		}
 
 		r = sproto_encode(args->subtype, args->value, args->length, encode, &sub);
 		lua_settop(L, top-1);	// pop the value
