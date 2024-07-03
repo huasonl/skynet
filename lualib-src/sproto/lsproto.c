@@ -287,6 +287,13 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 	case SPROTO_TINTEGER: {
 		int64_t v;
 		lua_Integer vh;
+
+		// 特殊字符替换成0
+		if (lua_type(L, -1) == LUA_TSTRING && strcmp(lua_tostring(L, -1), "__nil") == 0) {
+			lua_pushinteger(L, 0);
+			lua_replace(L, -2);
+		}
+
 		int isnum;
 		if (args->extra) {
 			// It's decimal.
@@ -339,7 +346,10 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 		}
 		if (sz > args->length)
 			return SPROTO_CB_ERROR;
-		memcpy(args->value, str, sz);
+		if (strcmp(str, "__nil") == 0)
+			sz = 0;
+		else
+			memcpy(args->value, str, sz);
 		lua_pop(L,1);
 		return sz;
 	}
@@ -358,7 +368,17 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 		sub.iter_table = 0;
 		sub.iter_key = 0;
 
-		if (lua_type(L, -1) != LUA_TTABLE) {
+		if (lua_type(L, -1) == LUA_TSTRING && strcmp(lua_tostring(L, -1), "__nil") == 0) {
+			// 表替换__nil
+			lua_newtable(L);
+			// 为表设置isDel标识,实际会不会被序列化,还是得看sproto协议定义结构中是否有isDel字段
+			lua_pushboolean(L, 1);
+			lua_setfield(L, -2, "isDel");
+			// isdel容错
+			lua_pushboolean(L, 1);
+			lua_setfield(L, -2, "isdel");
+			lua_replace(L, -2);
+		} else if (lua_type(L, -1) != LUA_TTABLE) {
 			lua_settop(L, top-1); // pop the value
 			return 0;
 		}
@@ -369,6 +389,23 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 			if (strcmp(lua_tostring(L, -1), "__type")== 0) {
 				lua_settop(L, lua_gettop(L)-2);
 				return 0;
+			} else {
+				lua_pop(L, 1);
+			}
+			
+			lua_getfield(L, -1, args->vtagname);
+			if (lua_type(L, -1) == LUA_TSTRING && strcmp(lua_tostring(L, -1), "__nil") == 0) {
+				lua_pop(L, 1);
+				// 自动转换成零值
+				if (args->vtagnametype == SPROTO_TINTEGER) {
+					lua_pushinteger(L, 0);
+					lua_setfield(L, -2, args->vtagname);
+				} else if (args->vtagnametype == SPROTO_TSTRING) {
+					lua_pushstring(L, "");
+					lua_setfield(L, -2, args->vtagname);
+				}
+			} else {
+				lua_pop(L, 1);
 			}
 		}
 		else {

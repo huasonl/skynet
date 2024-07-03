@@ -58,6 +58,7 @@ struct sproto_arg {
 	// When interpretd two fields struct as map, the following fields must not be NULL.
 	const char *ktagname;
 	const char *vtagname;
+	int vtagnametype;
 };
 
 typedef int (*sproto_callback)(const struct sproto_arg *args);

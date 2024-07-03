@@ -983,6 +983,7 @@ sproto_encode(const struct sproto_type *st, void * buffer, int size, sproto_call
 			if (f->map > 0) {
 				args.ktagname = f->st->f[0].name;
 				args.vtagname = f->st->f[1].name;
+				args.vtagnametype = f->st->f[1].type;
 			}
 			sz = encode_array(cb, &args, data, size);
 		} else {
