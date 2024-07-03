@@ -409,7 +409,7 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 			}
 		}
 		else {
-			if (self->iter_key > 0) {
+			if (self->iter_key > 0 && args->mainindexname != NULL) {
 				lua_getfield(L, -1, args->mainindexname);
 				if (lua_isnil(L, -1)) {
 					// 确保mainindex值不空
