@@ -875,9 +875,11 @@ encode_array_object(sproto_callback cb, struct sproto_arg *args, uint8_t *buffer
 			}
 			return NULL;	// sz == SPROTO_CB_ERROR
 		}
-		fill_size(buffer, sz);
-		buffer += SIZEOF_LENGTH+sz;
-		size -= sz;
+		if (sz > 0) {
+			fill_size(buffer, sz);
+			buffer += SIZEOF_LENGTH+sz;
+			size -= sz;
+		}
 		++args->index;
 	}
 	return buffer;
@@ -966,6 +968,13 @@ sproto_encode(const struct sproto_type *st, void * buffer, int size, sproto_call
 		args.tagid = f->tag;
 		args.subtype = f->st;
 		args.mainindex = f->key;
+		if (args.mainindex >= 0) {
+			args.mainindexname = f->st->f[0].name;
+			args.mainindextype = f->st->f[0].type;
+		} else {
+			args.mainindexname = NULL;
+			args.mainindextype = -1;
+		}
 		args.extra = f->extra;
 		args.ktagname = NULL;
 		args.vtagname = NULL;
@@ -974,6 +983,7 @@ sproto_encode(const struct sproto_type *st, void * buffer, int size, sproto_call
 			if (f->map > 0) {
 				args.ktagname = f->st->f[0].name;
 				args.vtagname = f->st->f[1].name;
+				args.vtagnametype = f->st->f[1].type;
 			}
 			sz = encode_array(cb, &args, data, size);
 		} else {

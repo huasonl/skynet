@@ -456,6 +456,41 @@ lpack(lua_State *L) {
 }
 
 static int
+lpack2(lua_State *L) {
+	size_t len;
+	uint8_t *ptr  = (uint8_t *)lua_touserdata(L, 1);
+	len = luaL_checkinteger(L, 2);
+	if (len >= 0x10000) {
+		return luaL_error(L, "Invalid size (too long) of data : %d", (int)len);
+	}
+
+	write_size(ptr, len-2);
+	lua_pushlstring(L, (const char *)ptr, len);
+	lua_pushinteger(L, len);
+
+	return 2;
+}
+
+static int
+lhpack(lua_State *L) {
+	size_t len;
+	uint8_t *ptr  = (uint8_t *)lua_touserdata(L, 1);
+	len = luaL_checkinteger(L, 2);
+	if (len >= 0x10000) {
+		return luaL_error(L, "Invalid size (too long) of data : %d", (int)len);
+	}
+
+	uint8_t * buffer = skynet_malloc(len);
+	write_size(buffer, len-2);
+	memcpy(buffer+2, ptr + 2, len - 2);
+
+	lua_pushlightuserdata(L, buffer);
+	lua_pushinteger(L, len);
+
+	return 2;
+}
+
+static int
 ltostring(lua_State *L) {
 	void * ptr = lua_touserdata(L, 1);
 	int size = luaL_checkinteger(L, 2);
@@ -473,7 +508,9 @@ luaopen_skynet_netpack(lua_State *L) {
 	luaL_checkversion(L);
 	luaL_Reg l[] = {
 		{ "pop", lpop },
-		{ "pack", lpack },
+		// { "pack", lpack },
+		{ "pack2", lpack2 },
+		{ "hpack", lhpack },
 		{ "clear", lclear },
 		{ "tostring", ltostring },
 		{ NULL, NULL },

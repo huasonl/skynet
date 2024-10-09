@@ -287,6 +287,13 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 	case SPROTO_TINTEGER: {
 		int64_t v;
 		lua_Integer vh;
+
+		// 特殊字符替换成0
+		if (lua_type(L, -1) == LUA_TSTRING && strcmp(lua_tostring(L, -1), "__nil") == 0) {
+			lua_pushinteger(L, 0);
+			lua_replace(L, -2);
+		}
+
 		int isnum;
 		if (args->extra) {
 			// It's decimal.
@@ -339,7 +346,10 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 		}
 		if (sz > args->length)
 			return SPROTO_CB_ERROR;
-		memcpy(args->value, str, sz);
+		if (strcmp(str, "__nil") == 0)
+			sz = 0;
+		else
+			memcpy(args->value, str, sz);
 		lua_pop(L,1);
 		return sz;
 	}
@@ -357,6 +367,69 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 		sub.iter_func = 0;
 		sub.iter_table = 0;
 		sub.iter_key = 0;
+
+		if (lua_type(L, -1) == LUA_TSTRING && strcmp(lua_tostring(L, -1), "__nil") == 0) {
+			// 表替换__nil
+			lua_newtable(L);
+			// 为表设置isDel标识,实际会不会被序列化,还是得看sproto协议定义结构中是否有isDel字段
+			lua_pushboolean(L, 1);
+			lua_setfield(L, -2, "isDel");
+			// isdel容错
+			lua_pushboolean(L, 1);
+			lua_setfield(L, -2, "isdel");
+			lua_replace(L, -2);
+		} else if (lua_type(L, -1) != LUA_TTABLE) {
+			lua_settop(L, top-1); // pop the value
+			return 0;
+		}
+
+		if (args->ktagname != NULL) {
+			// map忽略__type
+			lua_getfield(L, -1, args->ktagname);
+			if (strcmp(lua_tostring(L, -1), "__type")== 0) {
+				lua_settop(L, lua_gettop(L)-2);
+				return 0;
+			} else {
+				lua_pop(L, 1);
+			}
+			
+			lua_getfield(L, -1, args->vtagname);
+			if (lua_type(L, -1) == LUA_TSTRING && strcmp(lua_tostring(L, -1), "__nil") == 0) {
+				lua_pop(L, 1);
+				// 自动转换成零值
+				if (args->vtagnametype == SPROTO_TINTEGER) {
+					lua_pushinteger(L, 0);
+					lua_setfield(L, -2, args->vtagname);
+				} else if (args->vtagnametype == SPROTO_TSTRING) {
+					lua_pushstring(L, "");
+					lua_setfield(L, -2, args->vtagname);
+				}
+			} else {
+				lua_pop(L, 1);
+			}
+		}
+		else {
+			if (self->iter_key > 0 && args->mainindexname != NULL) {
+				lua_getfield(L, -1, args->mainindexname);
+				if (lua_isnil(L, -1)) {
+					// 确保mainindex值不空
+					lua_pop(L, 1);
+					lua_pushvalue(L, self->iter_key);
+					if (args->mainindextype == SPROTO_TINTEGER) {
+						// iter_key 转换成整数
+						lua_Integer iter_key = lua_tointeger(L, -1);
+						lua_pushinteger(L, iter_key);
+						lua_setfield(L, -3, args->mainindexname);
+						lua_pop(L, 1);
+					}else if (args->mainindextype == SPROTO_TSTRING) {
+						lua_setfield(L, -2, args->mainindexname);
+					}
+				} else {
+					lua_pop(L, 1);
+				}
+			}
+		}
+
 		r = sproto_encode(args->subtype, args->value, args->length, encode, &sub);
 		lua_settop(L, top-1);	// pop the value
 		if (r < 0) 
@@ -398,6 +471,29 @@ expand_buffer(lua_State *L, int osz, int nsz) {
 		return NULL;
 	}
 	output = lua_newuserdata(L, osz);
+	lua_replace(L, lua_upvalueindex(1));
+	lua_pushinteger(L, osz);
+	lua_replace(L, lua_upvalueindex(2));
+
+	return output;
+}
+
+static void *
+expand_buffer2(lua_State *L, int osz, int nsz, int cpSz) {
+	void *output;
+	do {
+		osz *= 2;
+	} while (osz < nsz);
+	if (osz > ENCODE_MAXSIZE) {
+		luaL_error(L, "object is too large (>%d)", ENCODE_MAXSIZE);
+		return NULL;
+	}
+	output = lua_newuserdata(L, osz);
+	if (cpSz > 0) {
+		uint8_t * buffer = lua_touserdata(L, lua_upvalueindex(1));
+		memcpy(output, buffer, cpSz);
+		output = (void *)((uint8_t *)output + cpSz);
+	}
 	lua_replace(L, lua_upvalueindex(1));
 	lua_pushinteger(L, osz);
 	lua_replace(L, lua_upvalueindex(2));
@@ -449,6 +545,52 @@ lencode(lua_State *L) {
 	}
 }
 
+static int
+lhencode(lua_State *L) {
+	struct encode_ud self;
+	void * buffer = lua_touserdata(L, lua_upvalueindex(1));
+	int sz = lua_tointeger(L, lua_upvalueindex(2));
+	struct sproto_type * st = lua_touserdata(L, 1);
+	if (st == NULL) {
+		lua_pushvalue(L, lua_upvalueindex(1));
+		lua_pushinteger(L, 0);
+		return 2;
+	}
+	int startIndex = lua_tointeger(L, 2);
+	if (startIndex > 0) {
+		buffer = (void *)((uint8_t *)buffer + startIndex);
+		sz -= startIndex;
+	}
+	int tbl_index = 3;
+
+	self.L = L;
+	self.st = st;
+	self.tbl_index = tbl_index;
+	for (;;) {
+		int r;
+		self.array_tag = NULL;
+		self.array_index = 0;
+		self.deep = 0;
+
+		lua_settop(L, tbl_index);
+		self.map_entry = 0;
+		self.iter_func = 0;
+		self.iter_table = 0;
+		self.iter_key = 0;
+
+		r = sproto_encode(st, buffer, sz, encode, &self);
+		if (r<0) {
+			buffer = expand_buffer2(L, sz, sz*2, startIndex);
+			sz = lua_tointeger(L, lua_upvalueindex(2));
+			sz -= startIndex;
+		} else {
+			lua_pushvalue(L, lua_upvalueindex(1));
+			lua_pushinteger(L, r + startIndex);
+			return 2;
+		}
+	}
+}
+
 struct decode_ud {
 	lua_State *L;
 	const char * array_tag;
@@ -493,7 +635,8 @@ decode(const struct sproto_arg *args) {
 			int64_t v = *(int64_t*)args->value;
 			lua_Number vn = (lua_Number)v;
 			vn /= args->extra;
-			lua_pushnumber(L, vn);
+			// lua_pushnumber(L, vn);
+			lua_pushinteger(L, vn);
 		} else {
 			int64_t v = *(int64_t*)args->value;
 			lua_pushinteger(L, v);
@@ -651,6 +794,47 @@ ldecode(lua_State *L) {
 }
 
 static int
+lhdecode(lua_State *L) {
+	struct sproto_type * st = lua_touserdata(L, 1);
+	const void * buffer;
+	struct decode_ud self;
+	size_t sz, startIndex;
+	int r;
+	if (st == NULL) {
+		// return nil
+		return 0;
+	}
+	sz = 0;
+	buffer = getbuffer(L, 2, &sz);
+	startIndex = lua_tointeger(L, 4);
+	if (!lua_istable(L, -1)) {
+		lua_newtable(L);
+	}
+	// 计算有效长度
+	const void *payload = buffer;
+	if (startIndex != 0) {
+		payload = (void *)((uint8_t *)buffer + startIndex);
+		sz = sz - startIndex;
+	}
+
+	self.L = L;
+	self.result_index = lua_gettop(L);
+	self.array_index = 0;
+	self.array_tag = NULL;
+	self.deep = 0;
+	self.mainindex_tag = -1;
+	self.key_index = 0;
+	self.map_entry = 0;
+	r = sproto_decode(st, payload, (int)sz, decode, &self);
+	if (r < 0) {
+		return luaL_error(L, "decode error");
+	}
+	lua_settop(L, self.result_index);
+	lua_pushinteger(L, r);
+	return 2;
+}
+
+static int
 ldumpproto(lua_State *L) {
 	struct sproto * sp = lua_touserdata(L, 1);
 	if (sp == NULL) {
@@ -661,10 +845,9 @@ ldumpproto(lua_State *L) {
 	return 0;
 }
 
-
 /*
 	string source	/  (lightuserdata , integer)
-	return string
+	return string,len
  */
 static int
 lpack(lua_State *L) {
@@ -683,8 +866,35 @@ lpack(lua_State *L) {
 		return luaL_error(L, "packing error, return size = %d", bytes);
 	}
 	lua_pushlstring(L, output, bytes);
+	lua_pushinteger(L, bytes);
 
-	return 1;
+	return 2;
+}
+
+static int
+lhpack(lua_State *L) {
+	size_t sz=0;
+	const void * buffer = getbuffer(L, 1, &sz);
+	// the worst-case space overhead of packing is 2 bytes per 2 KiB of input (256 words = 2KiB).
+	sz += 2;
+	size_t maxsz = (sz + 2047) / 2048 * 2 + sz + 2;
+	sz -= 2;
+	void * output = lua_touserdata(L, lua_upvalueindex(1));
+	int bytes;
+	int osz = lua_tointeger(L, lua_upvalueindex(2));
+	if (osz < maxsz) {
+		output = expand_buffer(L, osz, maxsz);
+	}
+	// 为netpack消息长度占位两个字节
+	void *payload = (void *)((uint8_t *)output +  2);
+	bytes = sproto_pack(buffer, sz, payload, maxsz - 2);
+	if (bytes > maxsz - 2) {
+		return luaL_error(L, "packing error, return size = %d", bytes);
+	}
+	lua_pushvalue(L, lua_upvalueindex(1));
+	lua_pushinteger(L, bytes + 2);
+
+	return 2;
 }
 
 static int
@@ -704,6 +914,26 @@ lunpack(lua_State *L) {
 	}
 	lua_pushlstring(L, output, r);
 	return 1;
+}
+
+static int
+lhunpack(lua_State *L) {
+	size_t sz=0;
+	const void * buffer = getbuffer(L, 1, &sz);
+	void * output = lua_touserdata(L, lua_upvalueindex(1));
+	int osz = lua_tointeger(L, lua_upvalueindex(2));
+	int r = sproto_unpack(buffer, sz, output, osz);
+	if (r < 0)
+		return luaL_error(L, "Invalid unpack stream");
+	if (r > osz) {
+		output = expand_buffer(L, osz, r);
+		r = sproto_unpack(buffer, sz, output, r);
+		if (r < 0)
+			return luaL_error(L, "Invalid unpack stream");
+	}
+	lua_pushvalue(L, lua_upvalueindex(1));
+	lua_pushinteger(L, r);
+	return 2;
 }
 
 static void
@@ -889,6 +1119,7 @@ luaopen_sproto_core(lua_State *L) {
 		{ "dumpproto", ldumpproto },
 		{ "querytype", lquerytype },
 		{ "decode", ldecode },
+		{ "hdecode", lhdecode },
 		{ "protocol", lprotocol },
 		{ "loadproto", lloadproto },
 		{ "saveproto", lsaveproto },
@@ -896,8 +1127,11 @@ luaopen_sproto_core(lua_State *L) {
 		{ NULL, NULL },
 	};
 	luaL_newlib(L,l);
-	pushfunction_withbuffer(L, "encode", lencode);
-	pushfunction_withbuffer(L, "pack", lpack);
-	pushfunction_withbuffer(L, "unpack", lunpack);
+	// pushfunction_withbuffer(L, "encode", lencode);
+	pushfunction_withbuffer(L, "hencode", lhencode);
+	// pushfunction_withbuffer(L, "pack", lpack);
+	pushfunction_withbuffer(L, "hpack", lhpack);
+	// pushfunction_withbuffer(L, "unpack", lunpack);
+	pushfunction_withbuffer(L, "hunpack", lhunpack);
 	return 1;
 }

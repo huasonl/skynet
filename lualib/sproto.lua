@@ -4,10 +4,10 @@ local assert = assert
 local sproto = {}
 local host = {}
 
-local weak_mt = { __mode = "kv" }
-local sproto_mt = { __index = sproto }
-local sproto_nogc = { __index = sproto }
-local host_mt = { __index = host }
+local weak_mt = {__mode = "kv"}
+local sproto_mt = {__index = sproto}
+local sproto_nogc = {__index = sproto}
+local host_mt = {__index = host}
 
 function sproto_mt:__gc()
 	core.deleteproto(self.__cobj)
@@ -17,8 +17,8 @@ function sproto.new(bin)
 	local cobj = assert(core.newproto(bin))
 	local self = {
 		__cobj = cobj,
-		__tcache = setmetatable( {} , weak_mt ),
-		__pcache = setmetatable( {} , weak_mt ),
+		__tcache = setmetatable({}, weak_mt),
+		__pcache = setmetatable({}, weak_mt)
 	}
 	return setmetatable(self, sproto_mt)
 end
@@ -26,8 +26,8 @@ end
 function sproto.sharenew(cobj)
 	local self = {
 		__cobj = cobj,
-		__tcache = setmetatable( {} , weak_mt ),
-		__pcache = setmetatable( {} , weak_mt ),
+		__tcache = setmetatable({}, weak_mt),
+		__pcache = setmetatable({}, weak_mt)
 	}
 	return setmetatable(self, sproto_nogc)
 end
@@ -38,12 +38,12 @@ function sproto.parse(ptext)
 	return sproto.new(pbin)
 end
 
-function sproto:host( packagename )
-	packagename = packagename or  "package"
+function sproto:host(packagename)
+	packagename = packagename or "package"
 	local obj = {
 		__proto = self,
 		__package = assert(core.querytype(self.__cobj, packagename), "type package not found"),
-		__session = {},
+		__session = {}
 	}
 	return setmetatable(obj, host_mt)
 end
@@ -97,12 +97,12 @@ local function queryproto(self, pname)
 		end
 		v = {
 			request = req,
-			response =resp,
+			response = resp,
 			name = pname,
-			tag = tag,
+			tag = tag
 		}
 		self.__pcache[pname] = v
-		self.__pcache[tag]  = v
+		self.__pcache[tag] = v
 	end
 
 	return v
@@ -122,9 +122,9 @@ function sproto:request_encode(protoname, tbl)
 	local p = queryproto(self, protoname)
 	local request = p.request
 	if request then
-		return core.encode(request,tbl) , p.tag
+		return core.encode(request, tbl), p.tag
 	else
-		return "" , p.tag
+		return "", p.tag
 	end
 end
 
@@ -132,7 +132,7 @@ function sproto:response_encode(protoname, tbl)
 	local p = queryproto(self, protoname)
 	local response = p.response
 	if response then
-		return core.encode(response,tbl)
+		return core.encode(response, tbl)
 	else
 		return ""
 	end
@@ -142,7 +142,7 @@ function sproto:request_decode(protoname, ...)
 	local p = queryproto(self, protoname)
 	local request = p.request
 	if request then
-		return core.decode(request,...) , p.name
+		return core.decode(request, ...), p.name
 	else
 		return nil, p.name
 	end
@@ -152,7 +152,7 @@ function sproto:response_decode(protoname, ...)
 	local p = queryproto(self, protoname)
 	local response = p.response
 	if response then
-		return core.decode(response,...)
+		return core.decode(response, ...)
 	end
 end
 
@@ -185,29 +185,31 @@ local function gen_response(self, response, session)
 		header_tmp.type = nil
 		header_tmp.session = session
 		header_tmp.ud = ud
-		local header = core.encode(self.__package, header_tmp)
+		local startIndex = 0
+		local header, size = core.hencode(self.__package, startIndex, header_tmp)
 		if response then
-			local content = core.encode(response, args)
-			return core.pack(header .. content)
+			startIndex = startIndex + size
+			return core.hpack(core.hencode(response, startIndex, args))
 		else
-			return core.pack(header)
+			return core.hpack(header, size)
 		end
 	end
 end
 
 function host:dispatch(...)
-	local bin = core.unpack(...)
+	local bin, len = core.hunpack(...)
 	header_tmp.type = nil
 	header_tmp.session = nil
 	header_tmp.ud = nil
-	local header, size = core.decode(self.__package, bin, header_tmp)
-	local content = bin:sub(size + 1)
+	local startIndex = 0
+	local header, size = core.hdecode(self.__package, bin, len, startIndex, header_tmp)
 	if header.type then
 		-- request
 		local proto = queryproto(self.__proto, header.type)
 		local result
 		if proto.request then
-			result = core.decode(proto.request, content)
+			startIndex = startIndex + size
+			result = core.hdecode(proto.request, bin, len, startIndex)
 		end
 		if header_tmp.session then
 			return "REQUEST", proto.name, result, gen_response(self, proto.response, header_tmp.session), header.ud
@@ -222,7 +224,8 @@ function host:dispatch(...)
 		if response == true then
 			return "RESPONSE", session, nil, header.ud
 		else
-			local result = core.decode(response, content)
+			startIndex = startIndex + size
+			local result = core.hdecode(response, bin, len, startIndex)
 			return "RESPONSE", session, result, header.ud
 		end
 	end
@@ -234,17 +237,17 @@ function host:attach(sp)
 		header_tmp.type = proto.tag
 		header_tmp.session = session
 		header_tmp.ud = ud
-		local header = core.encode(self.__package, header_tmp)
-
+		local startIndex = 0
+		local header, size = core.hencode(self.__package, startIndex, header_tmp)
 		if session then
 			self.__session[session] = proto.response or true
 		end
 
 		if proto.request then
-			local content = core.encode(proto.request, args)
-			return core.pack(header ..  content)
+			startIndex = startIndex + size
+			return core.hpack(core.hencode(proto.request, startIndex, args))
 		else
-			return core.pack(header)
+			return core.hpack(header, size)
 		end
 	end
 end

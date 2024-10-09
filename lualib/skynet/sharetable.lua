@@ -33,6 +33,15 @@ local function sharetable_service()
 		skynet.ret()
 	end
 
+    function sharetable.loadfiles(source, filenames)
+        for _, filename in ipairs(filenames) do
+            close_matrix(files[filename])
+            local m = core.matrix("@" .. filename)
+            files[filename] = m
+        end
+		skynet.ret()
+    end
+
 	function sharetable.loadstring(source, filename, datasource, ...)
 		close_matrix(files[filename])
 		local m = core.matrix(datasource, ...)
@@ -205,6 +214,10 @@ local sharetable = setmetatable ( {} , {
 
 function sharetable.loadfile(filename, ...)
 	skynet.call(sharetable.address, "lua", "loadfile", filename, ...)
+end
+
+function sharetable.loadfiles(filenames)
+    skynet.call(sharetable.address, "lua", "loadfiles", filenames)
 end
 
 function sharetable.loadstring(filename, source, ...)
