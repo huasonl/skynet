@@ -145,11 +145,22 @@ static int tmove (lua_State *L) {
 
 
 static void addfield (lua_State *L, luaL_Buffer *b, lua_Integer i) {
-  lua_geti(L, 1, i);
+  int type = lua_geti(L, 1, i);
+  if (type == LUA_TBOOLEAN){
+    lua_pushstring(L, (lua_toboolean(L, -1) ? "true" : "false"));
+  }
+  else if (type == LUA_TNIL){
+    lua_pushliteral(L, "nil");
+  }
+
   if (l_unlikely(!lua_isstring(L, -1)))
     luaL_error(L, "invalid value (%s) at index %I in table for 'concat'",
                   luaL_typename(L, -1), (LUAI_UACINT)i);
   luaL_addvalue(b);
+
+  if (type == LUA_TBOOLEAN || type == LUA_TNIL){
+    lua_pop(L, 1);  /* pop string */
+  }
 }
 
 

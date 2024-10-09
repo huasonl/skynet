@@ -51,11 +51,14 @@ struct sproto_arg {
 	int length;
 	int index;	// array base 1, negative value indicates that it is a empty array
 	int mainindex;	// for map
+	const char *mainindexname;
+	int mainindextype;
 	int extra; // SPROTO_TINTEGER: decimal ; SPROTO_TSTRING 0:utf8 string 1:binary
 
 	// When interpretd two fields struct as map, the following fields must not be NULL.
 	const char *ktagname;
 	const char *vtagname;
+	int vtagnametype;
 };
 
 typedef int (*sproto_callback)(const struct sproto_arg *args);
