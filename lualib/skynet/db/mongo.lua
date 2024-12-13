@@ -139,7 +139,7 @@ local function mongo_auth(mongoc)
 			assert(auth_func , "Invalid authmod")
 			assert(auth_func(authdb or mongoc, user, pass))
 		end
-		local rs_data =	mongoc:runCommand("ismaster")
+		local rs_data =	mongoc:runCommand("hello")
 		if rs_data.ok == 1 then
 			if rs_data.hosts then
 				local backup = {}
@@ -149,7 +149,7 @@ local function mongo_auth(mongoc)
 				end
 				mongoc.__sock:changebackup(backup)
 			end
-			if rs_data.ismaster	then
+			if rs_data.isWritablePrimary then
 				return
 			elseif rs_data.primary then
 				local host,	port = __parse_addr(rs_data.primary)
