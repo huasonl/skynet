@@ -137,6 +137,9 @@ local function init(skynet, export)
 		unpack = assert(skynet.unpack),
 		dispatch = _debug_dispatch,
 	}
+
+	local vscdebug = require "vscdebug"
+	vscdebug.init(skynet, export)
 end
 
 local function reg_debugcmd(name, fn)
