@@ -3,7 +3,7 @@ local coroutine_resume
 
 local function start()
     local skynet = require "skynet"
-	local openmode = os.getenv("vscdbg_open")
+    local openmode = os.getenv("vscdbg_open")
     if openmode == nil then
         return
     end
@@ -27,10 +27,13 @@ local function start()
     local injectrun = require "skynet.injectcode"
     local skynet_debug = require "skynet.debug"
     local vscdebugaux = require "skynet.vscdebugaux"
-    skynet_debug.reg_debugcmd("vsccmd", function(subcmd, ...)
-        local f = assert(vsccmd[subcmd])
-        f(...)
-    end)
+    skynet_debug.reg_debugcmd(
+        "vsccmd",
+        function(subcmd, ...)
+            local f = assert(vsccmd[subcmd])
+            f(...)
+        end
+    )
 
     local skip_srcs = {}
     skip_srcs[#skip_srcs + 1] = debug.getinfo(skynet_debug.reg_debugcmd, "S").source -- skip when enter debug.lua
@@ -55,15 +58,19 @@ local function start()
     end
 
     local function eval_log_message(ctx, log)
-        return string.gsub(log, "({.-})", function(expr)
-            if #expr >= 2 then
-                expr = expr:sub(2, -2)
-                local ok, res = injectrun("return " .. expr, ctx.co, 5)
-                return ok and res or ""
-            else
-                return ""
+        return string.gsub(
+            log,
+            "({.-})",
+            function(expr)
+                if #expr >= 2 then
+                    expr = expr:sub(2, -2)
+                    local ok, res = injectrun("return " .. expr, ctx.co, 5)
+                    return ok and res or ""
+                else
+                    return ""
+                end
             end
-        end)
+        )
     end
 
     local function breakpoints_hittest(ctx, source, line)
@@ -111,11 +118,11 @@ local function start()
                 else
                     frame.name = "?"
                 end
-                if (islua or ismain) and info.source:sub(1, 1) == '@' then
-					frame.source = {path = vscdebugaux.abspath(info.source:sub(2))}
+                if (islua or ismain) and info.source:sub(1, 1) == "@" then
+                    frame.source = {path = vscdebugaux.abspath(info.source:sub(2))}
                     frame.column = 1
                 else
-					frame.source = {presentationHint = "deemphasize"}
+                    frame.source = {presentationHint = "deemphasize"}
                 end
                 frame.line = info.currentline
                 frames[#frames + 1] = frame
@@ -127,7 +134,7 @@ local function start()
 
     local function clearvarcache()
         var_cache = {
-            id = 1,
+            id = 1
         }
     end
 
@@ -139,7 +146,7 @@ local function start()
     local function add_var_info(t, key, value)
         local tp = type(value)
         local refid = 0
-        if tp == 'table' then
+        if tp == "table" then
             if var_cache[value] then
                 refid = var_cache[value]
             else
@@ -153,7 +160,7 @@ local function start()
             name = tostring(key),
             value = tostring(value),
             type = tp,
-			variablesReference = refid
+            variablesReference = refid
         }
     end
 
@@ -175,7 +182,7 @@ local function start()
             if not name then
                 break
             end
-            if name:sub(1, 1) ~= '(' then
+            if name:sub(1, 1) ~= "(" then
                 add_var_info(t, name, value)
             end
             i = i + 1
@@ -218,7 +225,7 @@ local function start()
         if id == 0 then
             local info = debug.getinfo(co, level, "fn")
             assert(info, "frameId invalid")
-            if info.what ~= 'C' and info.func then
+            if info.what ~= "C" and info.func then
                 if type == 1 then
                     return get_func_locals(co, level)
                 elseif type == 2 then
@@ -242,7 +249,7 @@ local function start()
                 ctx = {
                     co = co,
                     level = 0,
-                    plevel = -1,
+                    plevel = -1
                 }
                 co_ctxs[co] = ctx
             end
@@ -268,7 +275,7 @@ local function start()
             if state ~= ST_RUNNING and ctx ~= debug_ctx then
                 return
             end
-            local reason;
+            local reason
             local hit = false
             if breakpoints_hittest(ctx, source, line) then
                 reason = "breakpoint"
@@ -380,16 +387,18 @@ local function start()
         skynet.retpack(ok, vars)
     end
 
-    skynet.init(function()
-        vscdebugd = skynet.uniqueservice("vscdebugd")
-        skynet.call(vscdebugd, "lua", "service_start")
-        -- hook skynet exit
-        local ori_skynet_exit = skynet.exit
-        skynet.exit = function()
-            skynet.send(vscdebugd, "lua", "service_exit")
-            ori_skynet_exit()
+    skynet.init(
+        function()
+            vscdebugd = skynet.uniqueservice("vscdebugd")
+            skynet.call(vscdebugd, "lua", "service_start")
+            -- hook skynet exit
+            local ori_skynet_exit = skynet.exit
+            skynet.exit = function()
+                skynet.send(vscdebugd, "lua", "service_exit")
+                ori_skynet_exit()
+            end
         end
-    end)
+    )
 
     -- debug hook
     local co = coroutine.running()
@@ -403,7 +412,7 @@ end
 local function init(skynet, import)
     skynet_suspend = import.suspend
     coroutine_resume = import.resume
-	if os.getenv("vscdbg_open") == nil then
+    if os.getenv("vscdbg_open") == nil then
         return
     end
 
@@ -418,7 +427,7 @@ local function init(skynet, import)
                 for i = 1, #t do
                     t[i] = tostring(t[i])
                 end
-                local msg = table.concat(t, '\t')
+                local msg = table.concat(t, "\t")
                 local line = info.currentline or 0
                 local source
                 if info.source and info.source:sub(1, 1) == "@" then
@@ -436,13 +445,22 @@ local function init(skynet, import)
 
     local ori_skynet_start = skynet.start
     skynet.start = function(start_func)
+        -- 过滤掉一些本地不允许调试的服务
+        local ignoreService = os.getenv("vscdbg_ignore_service")
+        for name in string.gmatch(ignoreService, "[%w_]+") do
+            if name == SERVICE_NAME then
+                ori_skynet_start(start_func)
+                return
+            end
+        end
+
         local source = debug.getinfo(start_func, "S").source
         if source and source:sub(1, 1) == "@" then
             source = vscdebugaux.abspath(source:sub(2))
-			local service_path = os.getenv("vscdbg_service") or "./service"
-			local service_path = vscdebugaux.abspath(service_path)
-			skynet.error(string.format("source=%s, service=%s", source, service_path))
-			if not source:find(service_path, 1, true) then
+            local service_path = os.getenv("vscdbg_service") or "./service"
+            service_path = vscdebugaux.abspath(service_path)
+            skynet.error(string.format("source=%s, service=%s", source, service_path))
+            if not source:find(service_path, 1, true) then
                 skynet.error("start debug: ", SERVICE_NAME)
                 start()
             end
@@ -452,5 +470,5 @@ local function init(skynet, import)
 end
 
 return {
-    init = init,
+    init = init
 }
