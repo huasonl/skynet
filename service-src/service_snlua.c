@@ -24,6 +24,7 @@
 #define MEMORY_WARNING_REPORT (1024 * 1024 * 32)
 
 struct snlua {
+	void * profile_context;
 	lua_State * L;
 	struct skynet_context * ctx;
 	size_t mem;
