@@ -420,6 +420,10 @@ init_cb(struct snlua *l, struct skynet_context *ctx, const char * args, size_t s
 	const char *preload = skynet_command(ctx, "GETENV", "preload");
 	lua_pushstring(L, preload);
 	lua_setglobal(L, "LUA_PRELOAD");
+	#ifdef __linux__
+	lua_pushboolean(L, 1);
+	lua_setglobal(L, "PLAT_LINUX");
+	#endif
 
 	lua_pushcfunction(L, traceback);
 	assert(lua_gettop(L) == 1);
