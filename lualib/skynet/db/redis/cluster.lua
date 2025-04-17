@@ -460,6 +460,9 @@ end
 -- without GET or BY, and so forth).
 setmetatable(rediscluster,{
 	__index = function (t,cmd)
+		if cmd == "__cname" then
+			return
+		end
 		t[cmd] = function (self,...)
 			return self:call(cmd,...)
 		end
