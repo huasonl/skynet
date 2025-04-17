@@ -34,6 +34,11 @@ local function request_sender(q, node)
 end
 
 local function get_queue(t, node)
+	if node == "__cname" then
+		-- 这边需要过滤__cname是因为ldump_cname函数会扫描所有gc对象
+		-- ldump_cname使用lua_getfield获取类名会触发元表调用
+		return
+	end
 	local q = {}
 	t[node] = q
 	skynet.fork(request_sender, q, node)

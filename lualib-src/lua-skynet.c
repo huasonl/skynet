@@ -8,6 +8,10 @@
 
 #include <lua.h>
 #include <lauxlib.h>
+#include <lobject.h>
+#include <lapi.h>
+#include <lstate.h>
+#include <lgc.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -492,6 +496,72 @@ ltrace(lua_State *L) {
 	return 0;
 }
 
+static int
+ldump_cname(lua_State *L) {
+	int total = 0;
+    struct global_State* lG = L->l_G;
+    struct GCObject* obj = lG->allgc;
+	lua_settop(L, 0);
+	lua_newtable(L); // {[cname] = count}
+    while (obj) {
+		if (obj->tt != LUA_TTABLE) {
+			obj = obj->next;
+			continue;
+		}
+
+		++total;
+		Table * t = gco2t(obj);
+		// 把t压入栈顶
+		lua_lock(L);
+		sethvalue2s(L, L->top.p, t);
+		api_incr_top(L);
+		lua_unlock(L);
+
+		// ret_tbl: t : new
+		lua_pushstring(L, "new");
+		int newType = lua_rawget(L, -2);
+		if (newType != LUA_TNIL) {
+			// 过滤掉类，只遍历实例
+			lua_settop(L, 1);
+			obj = obj->next;
+			continue;
+		}
+
+		// pop new
+		// ret_tbl: t 
+		lua_pop(L, 1);
+
+		// 获取 cname
+		// ret_tbl: t : cname
+		int cnameType = lua_getfield(L, -1, "__cname");
+		if (cnameType == LUA_TSTRING) {
+			// 复制cname
+			// ret_tbl: t : cname : cname
+			lua_pushvalue(L, -1);
+			// 取出count
+			// ret_tbl: t : cname : count
+			int retType = lua_rawget(L, 1);
+			if (retType == LUA_TNIL) {
+				// 栈顶的nil替换成0
+				lua_pushinteger(L, 1);
+			} else {
+				int count = lua_tointeger(L, -1);
+				lua_pushinteger(L, count + 1);
+			}
+			lua_replace(L, -2); 
+			// 执行 ret_tbl[cname] = count
+			lua_rawset(L, 1);
+		}
+		// ret_tbl
+		lua_settop(L, 1);
+
+        obj = obj->next;
+    }
+
+	lua_pushinteger(L, total);
+	return 2;
+}
+
 LUAMOD_API int
 luaopen_skynet_core(lua_State *L) {
 	luaL_checkversion(L);
@@ -519,6 +589,7 @@ luaopen_skynet_core(lua_State *L) {
 		{ "trash" , ltrash },
 		{ "now", lnow },
 		{ "hpc", lhpc },	// getHPCounter
+		{ "dump_cname", ldump_cname},
 		{ NULL, NULL },
 	};
 
