@@ -517,20 +517,6 @@ ldump_cname(lua_State *L) {
 		api_incr_top(L);
 		lua_unlock(L);
 
-		// ret_tbl: t : new
-		lua_pushstring(L, "new");
-		int newType = lua_rawget(L, -2);
-		if (newType != LUA_TNIL) {
-			// 过滤掉类，只遍历实例
-			lua_settop(L, 1);
-			obj = obj->next;
-			continue;
-		}
-
-		// pop new
-		// ret_tbl: t 
-		lua_pop(L, 1);
-
 		// 获取 cname
 		// ret_tbl: t : cname
 		int cnameType = lua_getfield(L, -1, "__cname");
