@@ -501,11 +501,12 @@ ldump_cname(lua_State *L) {
 	int total = 0;
     struct global_State* lG = L->l_G;
     struct GCObject* obj = lG->allgc;
-	lua_settop(L, 0);
-	lua_newtable(L); // {[cname] = count}
 	lua_pushstring(L, "new");
 	lua_pushstring(L, "__cname");
-	// ret_tbl: new : __cname
+	luaL_Buffer b;
+	luaL_buffinit(L, &b);
+	char cname[128] = {0};
+	//new : __cname
     while (obj) {
 		if (obj->tt != LUA_TTABLE) {
 			obj = obj->next;
@@ -515,16 +516,16 @@ ldump_cname(lua_State *L) {
 		++total;
 		Table * t = gco2t(obj);
 		// 把t压入栈顶
-		// ret_tbl: new : __cname : t 
+		//new : __cname : t 
 		lua_lock(L);
 		sethvalue2s(L, L->top.p, t);
 		api_incr_top(L);
 		lua_unlock(L);
 
-		// ret_tbl: new : __cname : t : new
-		lua_pushvalue(L, 2);
+		//new : __cname : t : new
+		lua_pushvalue(L, 1);
 		// 过滤掉类，只遍历实例
-		// ret_tbl: new : __cname : t : new value
+		//new : __cname : t : new value
 		int newType = lua_rawget(L, -2);
 		if (newType != LUA_TNIL) {
 			lua_pop(L, 2);
@@ -533,45 +534,27 @@ ldump_cname(lua_State *L) {
 		}
 
 		// pop new value
-		// ret_tbl: new : __cname : t 
+		// new : __cname : t 
 		lua_pop(L, 1);
 
 		// 获取 cname
-		// ret_tbl: new : __cname : t  ：__cname
-		lua_pushvalue(L, 3);
-		// ret_tbl: new : __cname : t  ：__cname valule
+		// new : __cname : t  ：__cname
+		lua_pushvalue(L, 2);
+		// new : __cname : t  ：__cname valule
 		int cnameType = lua_gettable(L, -2);
-		// pop t
-		// ret_tbl: new : __cname : __cname valule
+		// new : __cname : __cname valule
 		lua_replace(L, -2);
 		if (cnameType == LUA_TSTRING) {
-			// 复制cname value
-			// ret_tbl: new : __cname : __cname valule : __cname valule
-			lua_pushvalue(L, -1);
-			// 取出count
-			// ret_tbl: new : __cname : __cname valule : count
-			int retType = lua_rawget(L, 1);
-			if (retType == LUA_TNIL) {
-				// 栈顶的nil替换成0
-				lua_pushinteger(L, 1);
-			} else {
-				int count = lua_tointeger(L, -1);
-				lua_pushinteger(L, count + 1);
-			}
-			lua_replace(L, -2); 
-			// 执行 ret_tbl[cname] = count
-			// ret_tbl: new : __cname
-			lua_rawset(L, 1);
-		} else {
-			// pop  __cname valule
-			// ret_tbl: new : __cname
+			sprintf(cname, "%s,", lua_tostring(L, -1));
+			lua_pop(L, 1); // 这边要先pop
+			luaL_addlstring(&b, cname, strlen(cname));
+		}else {
 			lua_pop(L, 1);
 		}
-
         obj = obj->next;
     }
 
-	lua_settop(L, 1);
+	luaL_pushresult(&b);
 	lua_pushinteger(L, total);
 	return 2;
 }
