@@ -37,6 +37,9 @@ local mongo_client = {}
 
 local client_meta =	{
 	__index	= function(self, key)
+		if key == "__cname" then
+			return
+		end
 		return rawget(mongo_client,	key) or	self:getDB(key)
 	end,
 	__tostring = function (self)
@@ -56,6 +59,9 @@ local mongo_db = {}
 
 local db_meta =	{
 	__index	= function (self, key)
+		if key == "__cname" then
+			return
+		end
 		return rawget(mongo_db,	key) or	self:getCollection(key)
 	end,
 	__tostring = function (self)
@@ -66,6 +72,9 @@ local db_meta =	{
 local mongo_collection = {}
 local collection_meta =	{
 	__index	= function(self, key)
+		if key == "__cname" then
+			return
+		end
 		return rawget(mongo_collection,	key) or	self:getCollection(key)
 	end	,
 	__tostring = function (self)

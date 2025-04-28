@@ -181,6 +181,9 @@ function redis.connect(db_conf)
 end
 
 setmetatable(command, { __index = function(t,k)
+	if k == "__cname" then
+		return
+	end
 	local cmd = string.upper(k)
 	local f = function (self, v, ...)
 		if v == nil then
