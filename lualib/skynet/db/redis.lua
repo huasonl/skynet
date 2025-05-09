@@ -80,7 +80,12 @@ end
 local function make_cache(f)
 	return setmetatable({}, {
 		__mode = "kv",
-		__index = f,
+		__index = function(t,k)
+			if k == "__cname" or k == "__CNAME" then
+				return
+			end
+			return f(t,k)
+		end
 	})
 end
 
@@ -181,7 +186,7 @@ function redis.connect(db_conf)
 end
 
 setmetatable(command, { __index = function(t,k)
-	if k == "__cname" then
+	if k == "__cname" or k == "__CNAME" then
 		return
 	end
 	local cmd = string.upper(k)
