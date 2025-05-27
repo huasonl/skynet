@@ -541,7 +541,7 @@ ldump_cname(lua_State *L) {
 		// new : __cname : t  ：__cname
 		lua_pushvalue(L, 2);
 		// new : __cname : t  ：__cname valule
-		int cnameType = lua_gettable(L, -2);
+		int cnameType = lua_rawget(L, -2);
 		// new : __cname : __cname valule
 		lua_replace(L, -2);
 		if (cnameType == LUA_TSTRING) {
