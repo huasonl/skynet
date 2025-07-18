@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "msvcint.h"
 
+#include "skynet_malloc.h"
 #include "sproto.h"
 
 #define CHUNK_SIZE 1000

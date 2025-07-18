@@ -1,5 +1,7 @@
 #define LUA_LIB
 
+#include "skynet_malloc.h"
+
 // only for debug use
 #include <lua.h>
 #include <lauxlib.h>
