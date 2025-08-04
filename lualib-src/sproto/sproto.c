@@ -970,8 +970,8 @@ sproto_encode(const struct sproto_type *st, void * buffer, int size, sproto_call
 		args.subtype = f->st;
 		args.mainindex = f->key;
 		if (args.mainindex >= 0) {
-			args.mainindexname = f->st->f[0].name;
-			args.mainindextype = f->st->f[0].type;
+			args.mainindexname = f->st->f[args.mainindex].name;
+			args.mainindextype = f->st->f[args.mainindex].type;
 		} else {
 			args.mainindexname = NULL;
 			args.mainindextype = -1;
