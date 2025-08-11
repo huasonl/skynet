@@ -325,11 +325,16 @@ encode_one(const struct sproto_arg *args, struct encode_ud *self) {
 		return 8;
 	}
 	case SPROTO_TBOOLEAN: {
-		int isbool;
-		int v = tobooleanx(L, -1, &isbool);
-		if (!isbool) {
-			return luaL_error(L, ".%s[%d] is not a boolean (Is a %s)",
-				args->tagname, args->index, lua_typename(L, lua_type(L, -1)));
+		int isbool, v;
+		// 特殊字符替换成false
+		if (lua_type(L, -1) == LUA_TSTRING && strcmp(lua_tostring(L, -1), "__nil") == 0) {
+			v = 0;
+		} else {
+			v = tobooleanx(L, -1, &isbool);
+			if (!isbool) {
+				return luaL_error(L, ".%s[%d] is not a boolean (Is a %s)",
+					args->tagname, args->index, lua_typename(L, lua_type(L, -1)));
+			}
 		}
 		*(int *)args->value = v;
 		lua_pop(L,1);
