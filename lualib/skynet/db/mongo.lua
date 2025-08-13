@@ -150,14 +150,14 @@ local function mongo_auth(mongoc)
 		end
 		local rs_data =	mongoc:runCommand("hello")
 		if rs_data.ok == 1 then
-			if rs_data.hosts then
-				local backup = {}
-				for	_, v in	ipairs(rs_data.hosts) do
-					local host,	port = __parse_addr(v)
-					table.insert(backup, {host = host, port	= port})
-				end
-				mongoc.__sock:changebackup(backup)
-			end
+			-- if rs_data.hosts then
+			-- 	local backup = {}
+			-- 	for	_, v in	ipairs(rs_data.hosts) do
+			-- 		local host,	port = __parse_addr(v)
+			-- 		table.insert(backup, {host = host, port	= port})
+			-- 	end
+			-- 	mongoc.__sock:changebackup(backup)
+			-- end
 			if rs_data.isWritablePrimary then
 				return
 			elseif rs_data.primary then
