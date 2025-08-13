@@ -372,7 +372,7 @@ local function connect_once(self)
 				-- auth succ, go through
 			else
 				-- auth failed, try next addr
-				_add_backup()	-- auth may add new backup hosts
+				-- _add_backup()	-- auth may add new backup hosts
 				addr = _next_addr()
 				if addr == nil then
 					return false, "no more backup host"
