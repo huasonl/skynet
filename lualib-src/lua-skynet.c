@@ -499,69 +499,6 @@ ltrace(lua_State *L) {
 	return 0;
 }
 
-static int
-ldump_cname(lua_State *L) {
-	int total = 0;
-    struct global_State* lG = L->l_G;
-    struct GCObject* obj = lG->allgc;
-	lua_pushstring(L, "new");
-	lua_pushstring(L, "__cname");
-	luaL_Buffer b;
-	luaL_buffinit(L, &b);
-	char cname[128] = {0};
-	//new : __cname
-    while (obj) {
-		if (obj->tt != LUA_TTABLE) {
-			obj = obj->next;
-			continue;
-		}
-
-		++total;
-		Table * t = gco2t(obj);
-		// 把t压入栈顶
-		//new : __cname : t 
-		lua_lock(L);
-		sethvalue2s(L, L->top.p, t);
-		api_incr_top(L);
-		lua_unlock(L);
-
-		//new : __cname : t : new
-		lua_pushvalue(L, 1);
-		// 过滤掉类，只遍历实例
-		//new : __cname : t : new value
-		int newType = lua_rawget(L, -2);
-		if (newType != LUA_TNIL) {
-			lua_pop(L, 2);
-			obj = obj->next;
-			continue;
-		}
-
-		// pop new value
-		// new : __cname : t 
-		lua_pop(L, 1);
-
-		// 获取 cname
-		// new : __cname : t  ：__cname
-		lua_pushvalue(L, 2);
-		// new : __cname : t  ：__cname valule
-		int cnameType = lua_rawget(L, -2);
-		// new : __cname : __cname valule
-		lua_replace(L, -2);
-		if (cnameType == LUA_TSTRING) {
-			sprintf(cname, "%s,", lua_tostring(L, -1));
-			lua_pop(L, 1); // 这边要先pop
-			luaL_addlstring(&b, cname, strlen(cname));
-		}else {
-			lua_pop(L, 1);
-		}
-        obj = obj->next;
-    }
-
-	luaL_pushresult(&b);
-	lua_pushinteger(L, total);
-	return 2;
-}
-
 LUAMOD_API int
 luaopen_skynet_core(lua_State *L) {
 	luaL_checkversion(L);
@@ -589,7 +526,6 @@ luaopen_skynet_core(lua_State *L) {
 		{ "trash" , ltrash },
 		{ "now", lnow },
 		{ "hpc", lhpc },	// getHPCounter
-		{ "dump_cname", ldump_cname},
 		{ NULL, NULL },
 	};
 
@@ -600,7 +536,6 @@ luaopen_skynet_core(lua_State *L) {
 	if (ctx == NULL) {
 		return luaL_error(L, "Init skynet context first");
 	}
-
 
 	luaL_setfuncs(L,l,1);
 
