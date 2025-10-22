@@ -523,5 +523,6 @@ struct lua_Debug {
 * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
 
+#define LUA_FLOORN2I		F2Ifloor
 
 #endif
